@@ -1,0 +1,9 @@
+{
+  "appId": "com.maosun-dev.tjasaifu",
+  "appName": "TJA採譜台",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#FFFFFF"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "tjasaifu-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TJA採譜台 の iPhone アプリ（いまのツールを Capacitor で包む）",
+  "type": "module",
+  "scripts": {
+    "pull-web": "node tools/pull-web.mjs",
+    "build": "node tools/build-www.mjs",
+    "sync": "npm run build && npx cap sync ios",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/ios": "8.5.2",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
+  }
+}

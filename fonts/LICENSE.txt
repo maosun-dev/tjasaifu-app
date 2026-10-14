@@ -1,0 +1,4 @@
+このフォルダのフォントは SIL Open Font License 1.1 で配られています（https://openfontlicense.org/）。
+- Dela Gothic One
+- JetBrains Mono
+- Zen Kaku Gothic New
