@@ -4,7 +4,7 @@
 
 - 設計・計画は tjasaifu 側：`docs/superpowers/specs/2026-10-14-iphone-app-design.md`、`docs/superpowers/plans/2026-10-14-iphone-trial.md`
 - このリポジトリに入れるのは「ツールの完成品の写し（web/）」と「iPhone の包み」だけ。tjasaifu の分析用の譜面などは入れない
-- 背番号（バンドルID）：`com.maosun-dev.tjasaifu`（変えられない）
+- 背番号（バンドルID）：`com.maosundev.tjasaifu`（変えられない）
 - 置き場：GitHub `maosun-dev/tjasaifu-app`（作っている間は公開。ストアに出たら非公開にする）
 
 ## 作り方
