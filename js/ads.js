@@ -27,10 +27,11 @@ const adId = production ? REAL_INTERSTITIAL : TEST_INTERSTITIAL;
 if (!adId) return;
 const AdMob = plugin.AdMob;
 const DELAY = 600;   // 画面が切り替わってから出すまで
+const SHOW_WATCHDOG = 10000;   // 出してから、閉じた・出せなかったの知らせがこれだけ来なければ見切る（iOS の AdMob は画面が取れないと何も返さない）
 
 let started = false, inited = false, noAds = false;
 let interReady = false, loading = false, showing = false;
-let retryTimer = null;
+let retryTimer = null, watchdog = null;
 
 // 試し叩き・採譜の最中は出さない（叩いている途中に広告が出ると困る）
 const busyPlaying = () => {
@@ -45,7 +46,7 @@ function loadInter() {
     .then(() => { loading = false; if (!noAds) interReady = true; })
     .catch(() => { loading = false; clearTimeout(retryTimer); retryTimer = setTimeout(loadInter, 60000); });
 }
-function finishInter() { showing = false; interReady = false; loadInter(); }
+function finishInter() { clearTimeout(watchdog); showing = false; interReady = false; loadInter(); }
 
 function onMoment() {
   if (noAds || !interReady || showing || busyPlaying()) return;   // 読み込めていなければ、その回は出さない
@@ -54,6 +55,8 @@ function onMoment() {
     // 待っている間に買われた・試し叩きなどが始まった：出さない（読み込んだ広告は次の機会に使う）
     if (noAds || busyPlaying()) { showing = false; return; }
     interReady = false;
+    clearTimeout(watchdog);
+    watchdog = setTimeout(finishInter, SHOW_WATCHDOG);   // 知らせが来なければ showing を戻して次を読み込む
     Promise.resolve().then(() => AdMob.showInterstitial()).catch(finishInter);
   }, DELAY);
 }
@@ -75,7 +78,7 @@ async function init() {
 }
 
 /* ---------- 広告を消す（js/purchase.js の window.Purchase）とのつながり ---------- */
-function stopAds() { noAds = true; interReady = false; clearTimeout(retryTimer); }
+function stopAds() { noAds = true; interReady = false; clearTimeout(retryTimer); clearTimeout(watchdog); }
 function startAds() { noAds = false; if (inited) loadInter(); else init(); }
 const purchase = cfg.purchases ? window.Purchase || null : null;
 if (purchase) {

@@ -20,7 +20,13 @@ const VENDOR = [
 
 // 「このアプリについて」に出す部品のライセンス。file は www/licenses/ に写す名前、src は写し元
 const LICENSES = [
-  { name: 'Capacitor', license: 'MIT', file: 'capacitor_LICENSE.txt', src: 'node_modules/@capacitor/core/LICENSE' },
+  // 「Capacitor」の行の全文には、使っている Capacitor の部品すべての LICENSE を、部品の名前の見出しをつけて続けて入れる
+  { name: 'Capacitor', license: 'MIT', file: 'capacitor_LICENSE.txt', src: 'node_modules/@capacitor/core/LICENSE', also: [
+    ['@capacitor/filesystem', 'node_modules/@capacitor/filesystem/LICENSE'],
+    ['@capacitor/share', 'node_modules/@capacitor/share/LICENSE'],
+    ['@capacitor/preferences', 'node_modules/@capacitor/preferences/LICENSE'],
+    ['@capacitor/synapse', 'node_modules/@capacitor/synapse/LICENSE.md'],
+  ] },
   { name: 'AdMob の部品', license: 'MIT', file: 'capacitor-community-admob_LICENSE.txt', src: 'node_modules/@capacitor-community/admob/LICENSE' },
   { name: '課金の部品', license: 'MPL-2.0', file: 'capgo-native-purchases_LICENSE.txt', src: 'node_modules/@capgo/native-purchases/LICENSE' },
   { name: 'Dela Gothic One ほかフォント3つ', license: 'SIL Open Font License 1.1', file: 'fonts_OFL.txt', src: 'fonts/LICENSE.txt' },
@@ -40,6 +46,9 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here, en
     const ads = readFileSync(join(repo, 'js/ads.js'), 'utf8');
     if (!/const REAL_INTERSTITIAL = 'ca-app-pub-\d+\/\d+';/.test(ads)) {
       throw new Error('js/ads.js: 本物の全画面広告の ID（REAL_INTERSTITIAL）が空です');
+    }
+    if (/const REAL_INTERSTITIAL = 'ca-app-pub-3940256099942544\//.test(ads)) {
+      throw new Error('js/ads.js: 本物の全画面広告の ID（REAL_INTERSTITIAL）が Google のテスト用の番号のままです');
     }
     const plist = readFileSync(join(repo, 'ios/App/App/Info.plist'), 'utf8');
     if (plist.includes('ca-app-pub-3940256099942544~') || !/<key>GADApplicationIdentifier<\/key>\s*<string>ca-app-pub-\d+~\d+<\/string>/.test(plist)) {
@@ -84,7 +93,14 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here, en
   mkdirSync(join(out, 'licenses'), { recursive: true });
   for (const l of LICENSES) {
     if (!existsSync(join(repo, l.src))) throw new Error(l.src + ' がありません。npm install と node tools/fetch-fonts.mjs を先に');
-    copyFileSync(join(repo, l.src), join(out, 'licenses', l.file));
+    if (!l.also) { copyFileSync(join(repo, l.src), join(out, 'licenses', l.file)); continue; }
+    // 部品ごとの見出し + 全文を、空行をはさんで続ける（先頭は @capacitor/core）
+    const parts = [['@capacitor/core', l.src], ...l.also];
+    const text = parts.map(([n, src]) => {
+      if (!existsSync(join(repo, src))) throw new Error(src + ' がありません。npm install を先に');
+      return '===== ' + n + ' =====\n\n' + readFileSync(join(repo, src), 'utf8').trim() + '\n';
+    }).join('\n');
+    writeFileSync(join(out, 'licenses', l.file), text);
   }
   // 版の番号は Xcode の設定（MARKETING_VERSION）から読む
   const pbx = readFileSync(join(repo, 'ios/App/App.xcodeproj/project.pbxproj'), 'utf8');

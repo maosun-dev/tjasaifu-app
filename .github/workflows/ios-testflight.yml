@@ -11,6 +11,10 @@ name: iPhone版をTestFlightへ
 on:
   workflow_dispatch:
     inputs:
+      production:
+        description: 'ストアに出す版（本物の広告）'
+        type: boolean
+        default: false
       runner:
         description: '組み立てに使う Mac（新しいチップの Mac は混んでいて始まらないことがある）'
         type: choice
@@ -41,6 +45,9 @@ jobs:
           cache: npm
 
       - name: アプリのファイルを入れる
+        env:
+          # オンのときだけ 1（本物の広告 ID で組み立てる。テスト ID が残っていれば build が止める）
+          ADS_PRODUCTION: ${{ inputs.production && '1' || '' }}
         run: |
           npm ci
           npm test

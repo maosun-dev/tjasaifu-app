@@ -148,7 +148,8 @@ test('APP_INFO.licenses の写しは部品の本物の LICENSE と同じ', () =>
   buildWww({ root, out, repo, env: {} });
   const [cap, admob, purch, fonts] = runAppInfo(out).APP_INFO.licenses;
   const same = (l, src) => assert.equal(readFileSync(join(out, 'licenses', l.file), 'utf8'), readFileSync(join(repo, src), 'utf8'));
-  same(cap, 'node_modules/@capacitor/core/LICENSE');
+  // Capacitor の行は、core の全文に続けて他の部品の全文も入る（別の試験で確かめる）
+  assert.ok(readFileSync(join(out, 'licenses', cap.file), 'utf8').includes(readFileSync(join(repo, 'node_modules/@capacitor/core/LICENSE'), 'utf8').trim()));
   same(admob, 'node_modules/@capacitor-community/admob/LICENSE');
   same(purch, 'node_modules/@capgo/native-purchases/LICENSE');
   same(fonts, 'fonts/LICENSE.txt');
@@ -204,6 +205,12 @@ test('ADS_PRODUCTION=1：ads.js の本物の全画面 ID が空なら止まる',
   assert.throws(() => buildWww({ root, out: join(root, 'www'), repo: r, env: { ADS_PRODUCTION: '1' } }), /REAL_INTERSTITIAL/);
 });
 
+test('ADS_PRODUCTION=1：ads.js の本物の全画面 ID が Google のテスト番号なら止まる', () => {
+  const r = fakeRepo({ ads: a => a.replace(/const REAL_INTERSTITIAL = '[^']*';/, "const REAL_INTERSTITIAL = 'ca-app-pub-3940256099942544/4411468910';") });
+  const root = fakeRoot(page(''));
+  assert.throws(() => buildWww({ root, out: join(root, 'www'), repo: r, env: { ADS_PRODUCTION: '1' } }), /テスト/);
+});
+
 test('既定（ADS_PRODUCTION なし）の組み立ては、守りに引っかからずテスト ID のまま動く', () => {
   const r = fakeRepo({
     plist: p => p.replace(/ca-app-pub-7017663942238206~\d+/, TEST_APP_ID),
@@ -219,4 +226,19 @@ test('ads.js：テストの全画面 ID と本物の ID がどちらも入って
   const a = readFileSync(join(repo, 'js/ads.js'), 'utf8');
   assert.match(a, /const TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544\/4411468910';/);
   assert.match(a, /const REAL_INTERSTITIAL = 'ca-app-pub-7017663942238206\/6960467426';/);
+});
+
+test('Capacitor の行の全文ファイルに、5つの部品の名前と LICENSE が入っている（表示の行は4つのまま）', () => {
+  const root = fakeRoot(page(''));
+  const out = join(root, 'www');
+  buildWww({ root, out, repo, env: {} });
+  const info = runAppInfo(out).APP_INFO;
+  assert.equal(info.licenses.length, 4);
+  assert.equal(info.licenses[0].name, 'Capacitor');
+  const txt = readFileSync(join(out, 'licenses', info.licenses[0].file), 'utf8');
+  for (const n of ['@capacitor/core', '@capacitor/filesystem', '@capacitor/share', '@capacitor/preferences', '@capacitor/synapse']) {
+    assert.ok(txt.includes(n), n + ' が全文ファイルに無い');
+  }
+  assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capacitor/synapse/LICENSE.md'), 'utf8').trim()), 'synapse の全文が無い');
+  assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capacitor/filesystem/LICENSE'), 'utf8').trim()), 'filesystem の全文が無い');
 });

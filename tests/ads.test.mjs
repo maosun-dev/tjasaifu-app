@@ -74,7 +74,8 @@ function load(files, { native = true, production = false, purchases = true, pref
   const listeners = {};
   const window = {
     document, console, Promise, toasts,
-    setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 20)), clearTimeout,
+    // 10秒の見張り（SHOW_WATCHDOG）だけは 300ms に縮める（600ms の待ちは 20ms）
+    setTimeout: (f, ms) => setTimeout(f, ms === 10000 ? 300 : Math.min(ms, 20)), clearTimeout,
     addEventListener(t, f) { (listeners[t] ||= []).push(f); },
     moment(at) { (listeners['tja:ad-moment'] || []).forEach(f => f({ type: 'tja:ad-moment', detail: { at } })); },
   };
@@ -384,4 +385,32 @@ test('window.toast が無ければ、ツールの #toast に出す', async () =>
   assert.equal(document.toast.classList.contains('show'), true);
   await wait(40);
   assert.equal(document.toast.classList.contains('show'), false, 'しばらくしたら消える');
+});
+
+test('全画面広告を出したのに知らせが10秒来なければ、showing を戻して次を読み込む', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  w.moment('load');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 1);
+  const before = count(admob, 'prepareInterstitial');
+  await wait(100); await flush();
+  assert.equal(count(admob, 'prepareInterstitial'), before, '見張りの時間（縮めて300ms）の前は動かない');
+  await wait(300); await flush();
+  assert.equal(count(admob, 'prepareInterstitial'), before + 1, '見張りで次を読み込む');
+  w.moment('export');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 2, 'showing が戻っているので次も出る');
+});
+
+test('閉じた知らせが先に来たら、見張りは何もしない', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  w.moment('load');
+  await wait(40); await flush();
+  admob.handlers.interstitialAdDismissed();
+  await flush();
+  const before = count(admob, 'prepareInterstitial');
+  await wait(400); await flush();
+  assert.equal(count(admob, 'prepareInterstitial'), before, '二重に読み込まない');
 });

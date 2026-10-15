@@ -35,3 +35,26 @@ test('包みの部品：AdMob・課金・Preferences が入っている', () => 
   assert.equal(pkg.dependencies['@capgo/native-purchases'], '8.9.5');
   assert.equal(pkg.dependencies['@capacitor/preferences'], '8.0.1');
 });
+
+test('PrivacyInfo.xcprivacy：追跡なし・UserDefaults の理由 CA92.1。Xcode の Resources に入っている', () => {
+  const x = readFileSync(join(ios, 'App/PrivacyInfo.xcprivacy'), 'utf8');
+  assert.match(x, /<key>NSPrivacyTracking<\/key>\s*<false\/>/);
+  assert.match(x, /<key>NSPrivacyAccessedAPITypes<\/key>/);
+  assert.match(x, /<string>NSPrivacyAccessedAPICategoryUserDefaults<\/string>/);
+  assert.match(x, /<string>CA92\.1<\/string>/);
+  const pbx = readFileSync(join(ios, 'App.xcodeproj/project.pbxproj'), 'utf8');
+  const ref = pbx.match(/(\w{24}) \/\* PrivacyInfo\.xcprivacy \*\/ = \{isa = PBXFileReference/);
+  assert.ok(ref, 'PBXFileReference が無い');
+  assert.ok(pbx.includes('\t\t\t\t' + ref[1] + ' /* PrivacyInfo.xcprivacy */,'), 'グループに入っていない');
+  const build = pbx.match(/(\w{24}) \/\* PrivacyInfo\.xcprivacy in Resources \*\/ = \{isa = PBXBuildFile; fileRef = (\w{24})/);
+  assert.ok(build && build[2] === ref[1], 'PBXBuildFile が無い');
+  const phase = pbx.match(/\/\* Begin PBXResourcesBuildPhase section \*\/([\s\S]*?)\/\* End PBXResourcesBuildPhase section \*\//)[1];
+  assert.ok(phase.includes(build[1]), 'Resources の段に入っていない');
+  assert.equal(pbx.split(ref[1]).length - 1, 3 + 0, '登録の数が合わない（FileReference・BuildFile の中・グループ）');
+});
+
+test('ワークフロー：production の入力があり、ADS_PRODUCTION を www を作る段に渡している', () => {
+  const y = readFileSync(join(ios, '..', '..', '.github/workflows/ios-testflight.yml'), 'utf8');
+  assert.match(y, /inputs:[\s\S]*?production:\s*\r?\n\s*description: '[^']*本物の広告[^']*'\s*\r?\n\s*type: boolean\s*\r?\n\s*default: false/);
+  assert.match(y, /name: アプリのファイルを入れる\s*\r?\n\s*env:[\s\S]*?ADS_PRODUCTION: \$\{\{ inputs\.production && '1' \|\| '' \}\}\s*\r?\n\s*run: \|/);
+});
