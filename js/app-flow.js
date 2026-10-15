@@ -8,6 +8,7 @@
  *   やめた・何も選ばなかった・選んでいる最中にもう一度呼ばれた：null
  *   ただし前の選びが 60秒より長く終わらない（ファイル選びが開けずに固まった）ときは、前のを捨てて新しく開く
  *   （最後の守り。捨てた前の呼び出しがあとで終わっても、新しいほうの「選んでいる最中」は消さない）
+ *   読むときは Range: bytes=0- を付ける（付けないと iOS で mp3・wav が読めない。206 も r.ok）
  *   選んだファイルが読めない：例外（message は「読めませんでした（名前）」、code は 'read'）。ツールが知らせを出す
  *   ファイル選びがやめた以外で失敗：例外（message は「読めませんでした」、code は 'pick'）
  * ・picking：いまファイルを選んでいる最中か（読むだけ。60秒を過ぎたものは数えない）。js/ads.js が書き出しの広告を重ねないために見る
@@ -57,7 +58,9 @@ async function adThenPick(kind) {
     const name = p.name || 'file';
     let blob;
     try {
-      const r = await fetch(cap.convertFileSrc(p.path));
+      // Range を付ける：iOS の Capacitor は Range の無い要求のうち mp3・wav など（音・動画の種類）だけ
+      // HTTP の応答でない形で返し、r.ok が偽になって読めない。Range があればどの種類も 206 で全体を返す
+      const r = await fetch(cap.convertFileSrc(p.path), { headers: { Range: 'bytes=0-' } });
       if (!r.ok) throw new Error(String(r.status));
       blob = await r.blob();
     } catch (e) { throw fail('読めませんでした（' + name + '）', 'read'); }

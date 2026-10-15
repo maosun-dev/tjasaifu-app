@@ -165,6 +165,19 @@ test('adThenPick：選んだファイルが読めなければ、ファイル名�
   }
 });
 
+test('adThenPick：読むときは Range ヘッダ（bytes=0-）を付ける（iOS は mp3・wav などに Range が無いと HTTP の応答を返さず、読めなくなる）', async () => {
+  const seen = [];
+  const fetchImpl = async (url, opts) => { seen.push({ url, opts }); return { ok: true, status: 206, blob: async () => new Blob(['mp3!'], { type: 'audio/mpeg' }) }; };
+  const picker = fakePicker({ result: { files: [{ name: 'きょく.mp3', path: 'file:///tmp/きょく.mp3', mimeType: 'audio/mpeg' }] } });
+  const f = await load(flow, { picker, fetchImpl, extra: noAd }).w.TjaApp.adThenPick('audio');
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].opts && seen[0].opts.headers && seen[0].opts.headers.Range, 'bytes=0-');
+  assert.ok(f instanceof File, '206 の応答からも File ができる');
+  assert.equal(f.name, 'きょく.mp3');
+  assert.equal(f.type, 'audio/mpeg');
+  assert.equal(await f.text(), 'mp3!');
+});
+
 test('adThenPick：ファイル選びがやめた以外で失敗したら「読めませんでした」で例外', async () => {
   const { w } = load(flow, { picker: fakePicker({ error: new Error('boom') }), extra: noAd });
   await assert.rejects(w.TjaApp.adThenPick('audio'), e => e.message === '読めませんでした' && e.code === 'pick');
