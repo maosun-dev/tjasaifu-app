@@ -119,7 +119,7 @@ test('production では本物の全画面 ID を使い、テスト扱いにし�
 test('ad-moment で全画面広告を出す（読み込み済みのとき）', async () => {
   const { w, admob } = load(both);
   await flush();
-  w.moment('load');
+  w.moment('export');
   assert.equal(count(admob, 'showInterstitial'), 0, 'すぐには出さない（600ms 後）');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
@@ -129,7 +129,7 @@ test('読み込めていないときは出さない（待たない）', async ()
   const admob = fakeAdMob({ prepareInterstitial: () => new Promise(() => {}) });
   const { w } = load(both, { admob });
   await flush();
-  w.moment('import');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 0);
 });
@@ -151,7 +151,7 @@ test('Purchase.ready の前の ad-moment では出さない', async () => {
   const prefs = fakePrefs({}, { get: () => new Promise(r => { release = r; }) });
   const { w, admob } = load(both, { prefs });
   await flush();
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 0);
   assert.equal(count(admob, 'initialize'), 0, 'ready の前は始めない');
@@ -166,7 +166,7 @@ for (const cls of ['ph-pt', 'ph-rec']) {
     const { w, admob, document } = load(both);
     await flush();
     document.body.classList.add(cls);
-    w.moment('load');
+    w.moment('export');
     await wait(40); await flush();
     assert.equal(count(admob, 'showInterstitial'), 0);
     // 終わったあとの次の機会には出る（読み込んだ広告は残っている）
@@ -180,7 +180,7 @@ for (const cls of ['ph-pt', 'ph-rec']) {
 test('600ms の間に試し叩きが始まったら出さない', async () => {
   const { w, admob, document } = load(both);
   await flush();
-  w.moment('load');
+  w.moment('export');
   document.body.classList.add('ph-pt');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 0);
@@ -189,7 +189,7 @@ test('600ms の間に試し叩きが始まったら出さない', async () => {
 test('一度に1枚だけ。閉じたら次を読み込み、次の機会に出す', async () => {
   const { w, admob } = load(both);
   await flush();
-  w.moment('load'); w.moment('load');   // 600ms の間に2回目
+  w.moment('export'); w.moment('export');   // 600ms の間に2回目
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
   w.moment('export');   // 出している最中
@@ -199,7 +199,7 @@ test('一度に1枚だけ。閉じたら次を読み込み、次の機会に出�
   admob.handlers.interstitialAdDismissed();
   await flush();
   assert.equal(count(admob, 'prepareInterstitial'), before + 1, '閉じたら次を読み込む');
-  w.moment('import');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 2);
 });
@@ -211,7 +211,7 @@ test('出せなかったときも次を読み込む', async () => {
   admob.handlers.interstitialAdFailedToShow({});
   await flush();
   assert.equal(count(admob, 'prepareInterstitial'), before + 1);
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
 });
@@ -220,7 +220,7 @@ test('使っている途中で買ったら、もう出さない', async () => {
   const { w, admob } = load(both);
   await flush();
   await w.Purchase.buy();
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 0);
 });
@@ -228,7 +228,7 @@ test('使っている途中で買ったら、もう出さない', async () => {
 test('600ms の間に買ったら出さない', async () => {
   const { w, admob } = load(both);
   await flush();
-  w.moment('load');
+  w.moment('export');
   await w.Purchase.buy();
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 0);
@@ -239,7 +239,7 @@ test('払い戻しで買っていない状態に戻ったら広告を始める',
   await flush();   // Apple は「買っていない」と答える
   assert.equal(w.Purchase.owned(), false);
   assert.equal(count(admob, 'initialize'), 1);
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
 });
@@ -262,7 +262,7 @@ test('課金が off：覚えた値があっても、みんなに広告を出す'
   await flush();
   assert.equal(count(admob, 'requestTrackingAuthorization'), 1);
   assert.equal(count(admob, 'initialize'), 1);
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
 });
@@ -390,7 +390,7 @@ test('window.toast が無ければ、ツールの #toast に出す', async () =>
 test('全画面広告を出したのに知らせが10秒来なければ、showing を戻して次を読み込む', async () => {
   const { w, admob } = load(both);
   await flush();
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   assert.equal(count(admob, 'showInterstitial'), 1);
   const before = count(admob, 'prepareInterstitial');
@@ -406,11 +406,119 @@ test('全画面広告を出したのに知らせが10秒来なければ、showin
 test('閉じた知らせが先に来たら、見張りは何もしない', async () => {
   const { w, admob } = load(both);
   await flush();
-  w.moment('load');
+  w.moment('export');
   await wait(40); await flush();
   admob.handlers.interstitialAdDismissed();
   await flush();
   const before = count(admob, 'prepareInterstitial');
   await wait(400); await flush();
   assert.equal(count(admob, 'prepareInterstitial'), before, '二重に読み込まない');
+});
+
+/* ---------- 曲・ファイルを選ぶ前の広告（TjaAds.showNow）と、残す合図は「書き出したあと」だけ ---------- */
+
+for (const at of ['load', 'import']) {
+  test(`ad-moment の ${at} では、もう広告を出さない`, async () => {
+    const { w, admob } = load(both);
+    await flush();
+    w.moment(at);
+    await wait(40); await flush();
+    assert.equal(count(admob, 'showInterstitial'), 0);
+  });
+}
+
+test('ad-moment の export では今までどおり出す', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  w.moment('export');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 1);
+});
+
+test('showNow：読み込み済みなら待たずにすぐ出し、閉じたら true', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  let done = null;
+  w.TjaAds.showNow().then(v => { done = v; });
+  await flush();
+  assert.equal(count(admob, 'showInterstitial'), 1, '600ms 待たずに出す');
+  assert.equal(done, null, '閉じるまでは終わらない');
+  admob.handlers.interstitialAdDismissed();
+  await flush();
+  assert.equal(done, true);
+});
+
+test('showNow：出せなかった知らせでも true で終わる', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  const p = w.TjaAds.showNow();
+  await flush();
+  admob.handlers.interstitialAdFailedToShow({});
+  assert.equal(await p, true);
+});
+
+test('showNow：showInterstitial が失敗しても true で終わる', async () => {
+  const admob = fakeAdMob({ showInterstitial: async () => { throw new Error('no view'); } });
+  const { w } = load(both, { admob });
+  await flush();
+  assert.equal(await w.TjaAds.showNow(), true);
+});
+
+test('showNow：閉じた知らせが来なくても、10秒の見張り（縮めて300ms）で true', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  let done = null;
+  w.TjaAds.showNow().then(v => { done = v; });
+  await wait(100); await flush();
+  assert.equal(done, null);
+  await wait(300); await flush();
+  assert.equal(done, true);
+  assert.equal(count(admob, 'showInterstitial'), 1);
+});
+
+test('showNow：読み込めていなければ出さずにすぐ false', async () => {
+  const admob = fakeAdMob({ prepareInterstitial: () => new Promise(() => {}) });
+  const { w } = load(both, { admob });
+  await flush();
+  assert.equal(await w.TjaAds.showNow(), false);
+  assert.equal(count(admob, 'showInterstitial'), 0);
+});
+
+test('showNow：買った人には出さずに false', async () => {
+  const np = fakeStore(); np.owned = true;
+  const { w, admob } = load(both, { np, prefs: fakePrefs({ [KEY]: '1' }) });
+  await flush();
+  assert.equal(await w.TjaAds.showNow(), false);
+  assert.equal(count(admob, 'showInterstitial'), 0);
+});
+
+test('showNow：ほかの広告を出している最中は false（重ねない）', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  const first = w.TjaAds.showNow();
+  await flush();
+  assert.equal(await w.TjaAds.showNow(), false);
+  assert.equal(count(admob, 'showInterstitial'), 1);
+  admob.handlers.interstitialAdDismissed();
+  assert.equal(await first, true);
+});
+
+test('showNow：閉じたら次を読み込み、次も出せる', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  const p = w.TjaAds.showNow();
+  await flush();
+  admob.handlers.interstitialAdDismissed();
+  await p; await flush();
+  const q = w.TjaAds.showNow();
+  await flush();
+  assert.equal(count(admob, 'showInterstitial'), 2);
+  admob.handlers.interstitialAdDismissed();
+  assert.equal(await q, true);
+});
+
+test('ウェブ版（iPhone でない）では TjaAds を作らない', async () => {
+  const { w } = load(both, { native: false });
+  await flush();
+  assert.equal(w.TjaAds, undefined);
 });

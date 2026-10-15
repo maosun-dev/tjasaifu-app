@@ -81,7 +81,8 @@ test('ウェブ版の訪問者数（Tally）はアプリに入れない', () => 
 const SCRIPT_ORDER = [
   'js/vendor/capacitor.js', 'js/vendor/synapse.js', 'js/vendor/filesystem.js', 'js/vendor/share.js',
   'js/vendor/admob.js', 'js/vendor/preferences.js', 'js/vendor/purchases.js',
-  'js/app-info.js', 'js/app-native.js', 'js/purchase.js', 'js/ads.js',
+  'js/vendor/network.js', 'js/vendor/file-picker.js',
+  'js/app-info.js', 'js/app-native.js', 'js/purchase.js', 'js/ads.js', 'js/app-flow.js',
 ];
 
 test('広告・課金の部品と app-info.js が決まった順で本体より前に入る', () => {
@@ -228,7 +229,7 @@ test('ads.js：テストの全画面 ID と本物の ID がどちらも入って
   assert.match(a, /const REAL_INTERSTITIAL = 'ca-app-pub-7017663942238206\/6960467426';/);
 });
 
-test('Capacitor の行の全文ファイルに、5つの部品の名前と LICENSE が入っている（表示の行は4つのまま）', () => {
+test('Capacitor の行の全文ファイルに、7つの部品の名前と LICENSE が入っている（表示の行は4つのまま）', () => {
   const root = fakeRoot(page(''));
   const out = join(root, 'www');
   buildWww({ root, out, repo, env: {} });
@@ -236,9 +237,20 @@ test('Capacitor の行の全文ファイルに、5つの部品の名前と LICEN
   assert.equal(info.licenses.length, 4);
   assert.equal(info.licenses[0].name, 'Capacitor');
   const txt = readFileSync(join(out, 'licenses', info.licenses[0].file), 'utf8');
-  for (const n of ['@capacitor/core', '@capacitor/filesystem', '@capacitor/share', '@capacitor/preferences', '@capacitor/synapse']) {
+  for (const n of ['@capacitor/core', '@capacitor/filesystem', '@capacitor/share', '@capacitor/preferences', '@capacitor/synapse', '@capacitor/network', '@capawesome/capacitor-file-picker']) {
     assert.ok(txt.includes(n), n + ' が全文ファイルに無い');
   }
   assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capacitor/synapse/LICENSE.md'), 'utf8').trim()), 'synapse の全文が無い');
   assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capacitor/filesystem/LICENSE'), 'utf8').trim()), 'filesystem の全文が無い');
+  assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capacitor/network/LICENSE'), 'utf8').trim()), 'network の全文が無い');
+  assert.ok(txt.includes(readFileSync(join(repo, 'node_modules/@capawesome/capacitor-file-picker/LICENSE'), 'utf8').trim()), 'file-picker の全文が無い');
+});
+
+test('ファイル選び・つながりの部品の配布ファイルは、決まったグローバル名を作る', () => {
+  const root = fakeRoot(page(''));
+  const out = join(root, 'www');
+  buildWww({ root, out, repo, env: {} });
+  assert.match(readFileSync(join(out, 'js/vendor/network.js'), 'utf8'), /^var capacitorNetwork = /);
+  assert.match(readFileSync(join(out, 'js/vendor/file-picker.js'), 'utf8'), /^var capacitorFilePicker = /);
+  assert.ok(existsSync(join(out, 'js/app-flow.js')));
 });

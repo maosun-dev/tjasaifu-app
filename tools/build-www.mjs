@@ -16,6 +16,8 @@ const VENDOR = [
   ['admob.js', '@capacitor-community/admob/dist/plugin.js'],       // 広告
   ['preferences.js', '@capacitor/preferences/dist/plugin.js'],     // 小さな設定の保存
   ['purchases.js', '@capgo/native-purchases/dist/plugin.js'],      // 課金（広告を消す）
+  ['network.js', '@capacitor/network/dist/plugin.js'],             // インターネットにつながっているか（window.capacitorNetwork）
+  ['file-picker.js', '@capawesome/capacitor-file-picker/dist/plugin.js'],   // iPhone 本体のファイル選び（window.capacitorFilePicker）
 ];
 
 // 「このアプリについて」に出す部品のライセンス。file は www/licenses/ に写す名前、src は写し元
@@ -26,6 +28,8 @@ const LICENSES = [
     ['@capacitor/share', 'node_modules/@capacitor/share/LICENSE'],
     ['@capacitor/preferences', 'node_modules/@capacitor/preferences/LICENSE'],
     ['@capacitor/synapse', 'node_modules/@capacitor/synapse/LICENSE.md'],
+    ['@capacitor/network', 'node_modules/@capacitor/network/LICENSE'],
+    ['@capawesome/capacitor-file-picker', 'node_modules/@capawesome/capacitor-file-picker/LICENSE'],
   ] },
   { name: 'AdMob の部品', license: 'MIT', file: 'capacitor-community-admob_LICENSE.txt', src: 'node_modules/@capacitor-community/admob/LICENSE' },
   { name: '課金の部品', license: 'MPL-2.0', file: 'capgo-native-purchases_LICENSE.txt', src: 'node_modules/@capgo/native-purchases/LICENSE' },
@@ -112,9 +116,9 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here, en
     `window.APP_INFO = ${JSON.stringify(appInfo)};
 window.ADS_CONFIG = ${JSON.stringify(adsConfig)};
 `);
-  for (const f of ['purchase.js', 'ads.js']) copyFileSync(join(repo, 'js', f), join(out, 'js', f));
+  for (const f of ['purchase.js', 'ads.js', 'app-flow.js']) copyFileSync(join(repo, 'js', f), join(out, 'js', f));
 
-  const tags = [...VENDOR.map(([f]) => `js/vendor/${f}`), 'js/app-info.js', 'js/app-native.js', 'js/purchase.js', 'js/ads.js']
+  const tags = [...VENDOR.map(([f]) => `js/vendor/${f}`), 'js/app-info.js', 'js/app-native.js', 'js/purchase.js', 'js/ads.js', 'js/app-flow.js']
     .map(f => `<script src="${f}"></script>`).join('\n');
   html = html.replace('</head>', tags + '\n</head>');
   writeFileSync(join(out, 'index.html'), html);

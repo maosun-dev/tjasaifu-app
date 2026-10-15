@@ -15,8 +15,10 @@
     "@capacitor/core": "8.5.2",
     "@capacitor/filesystem": "8.1.4",
     "@capacitor/ios": "8.5.2",
+    "@capacitor/network": "8.0.1",
     "@capacitor/preferences": "8.0.1",
     "@capacitor/share": "8.0.3",
+    "@capawesome/capacitor-file-picker": "8.1.0",
     "@capgo/native-purchases": "8.9.5"
   },
   "devDependencies": {

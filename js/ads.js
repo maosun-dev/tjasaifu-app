@@ -1,7 +1,11 @@
 /* ---------- 広告（AdMob の全画面広告だけ。iPhone アプリだけ。ウェブ版では読み込まれない） ----------
  * 手本はワンタップ収支の js/ads.js（バナーは使わないので外した）。
- * ・ツールが window に出す知らせ tja:ad-moment（detail.at = 'load' | 'import' | 'export'）のたびに、全画面広告を出す
+ * ・「曲から作る」「ファイルから入れる」を押したとき：js/app-flow.js が window.TjaAds.showNow() を呼ぶ
+ *   出せればすぐ全画面広告を出し、閉じた・出せなかった・10秒の見張りのどれかで true。出せないときはすぐ false
+ *   （押した直後なので 600ms は待たない。終わったらファイル選びを開く）
+ * ・ツールが window に出す知らせ tja:ad-moment は、書き出したあと（detail.at = 'export'）だけ全画面広告を出す
  *   出すのは 600ms 後（画面が切り替わったのが見えてから）。毎回出す
+ *   'load'（読み込んだあと）・'import'（入れたあと）は、選ぶ前に出すようにしたので出さない
  * ・出さないとき：前もって読み込めていない（待たせない）・ほかの広告を出している／出す予定・
  *   試し叩き（body.ph-pt）や採譜（body.ph-rec）の最中・広告を消した人
  * ・閉じたら（出せなかったときも）次の広告を読み込んでおく
@@ -32,6 +36,7 @@ const SHOW_WATCHDOG = 10000;   // 出してから、閉じた・出せなかっ�
 let started = false, inited = false, noAds = false;
 let interReady = false, loading = false, showing = false;
 let retryTimer = null, watchdog = null;
+let waiters = [];   // showNow() で閉じるのを待っているもの
 
 // 試し叩き・採譜の最中は出さない（叩いている途中に広告が出ると困る）
 const busyPlaying = () => {
@@ -46,21 +51,40 @@ function loadInter() {
     .then(() => { loading = false; if (!noAds) interReady = true; })
     .catch(() => { loading = false; clearTimeout(retryTimer); retryTimer = setTimeout(loadInter, 60000); });
 }
-function finishInter() { clearTimeout(watchdog); showing = false; interReady = false; loadInter(); }
+function finishInter() {
+  clearTimeout(watchdog); showing = false; interReady = false;
+  const w = waiters; waiters = [];
+  for (const f of w) f(true);   // showNow() を待っているもの：閉じた（出せなかった・見切った）ので先へ
+  loadInter();
+}
+// 全画面広告を出す（showing はもう true にしてあること）
+function showInter() {
+  interReady = false;
+  clearTimeout(watchdog);
+  watchdog = setTimeout(finishInter, SHOW_WATCHDOG);   // 知らせが来なければ showing を戻して次を読み込む
+  Promise.resolve().then(() => AdMob.showInterstitial()).catch(finishInter);
+}
 
-function onMoment() {
+function onMoment(e) {
+  if (!e || !e.detail || e.detail.at !== 'export') return;   // 書き出したあとだけ
   if (noAds || !interReady || showing || busyPlaying()) return;   // 読み込めていなければ、その回は出さない
   showing = true;
   setTimeout(() => {
     // 待っている間に買われた・試し叩きなどが始まった：出さない（読み込んだ広告は次の機会に使う）
     if (noAds || busyPlaying()) { showing = false; return; }
-    interReady = false;
-    clearTimeout(watchdog);
-    watchdog = setTimeout(finishInter, SHOW_WATCHDOG);   // 知らせが来なければ showing を戻して次を読み込む
-    Promise.resolve().then(() => AdMob.showInterstitial()).catch(finishInter);
+    showInter();
   }, DELAY);
 }
 window.addEventListener('tja:ad-moment', onMoment);
+
+// 選ぶ前の広告。出せるならすぐ出して、閉じたら true。出せないときはすぐ false（待たせない）
+window.TjaAds = {
+  showNow() {
+    if (noAds || !interReady || showing) return Promise.resolve(false);
+    showing = true;
+    return new Promise(r => { waiters.push(r); showInter(); });
+  },
+};
 
 async function init() {
   if (started) return;
@@ -78,7 +102,10 @@ async function init() {
 }
 
 /* ---------- 広告を消す（js/purchase.js の window.Purchase）とのつながり ---------- */
-function stopAds() { noAds = true; interReady = false; clearTimeout(retryTimer); clearTimeout(watchdog); }
+function stopAds() {
+  noAds = true; interReady = false; clearTimeout(retryTimer); clearTimeout(watchdog);
+  const w = waiters; waiters = []; for (const f of w) f(true);   // 待っているものは止めずに先へ
+}
 function startAds() { noAds = false; if (inited) loadInter(); else init(); }
 const purchase = cfg.purchases ? window.Purchase || null : null;
 if (purchase) {
