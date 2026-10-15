@@ -308,3 +308,60 @@ test('adThenPick：前の選びが60秒より長く終わらない（固まっ�
   assert.ok(await fresh);
   assert.equal(w.TjaApp.picking, false);
 });
+
+/* ---------- showAd()（書き出す前の広告） ---------- */
+
+test('showAd：広告が閉じるまで待ち、出したときは 300ms 待ってから終わる', async () => {
+  const log = [];
+  let close;
+  const extra = {
+    TjaAds: { showNow: () => { log.push('showNow'); return new Promise(r => { close = () => { log.push('closed'); r(true); }; }); } },
+    setTimeout: (f, ms) => { log.push('wait' + ms); return setTimeout(f, 0); },
+  };
+  const { w } = load(flow, { log, extra });
+  let done = false;
+  const p = w.TjaApp.showAd().then(v => { done = true; log.push('done'); return v; });
+  await flush();
+  assert.equal(done, false, '閉じる前には終わらない');
+  close();
+  assert.equal(await p, undefined);
+  assert.deepEqual(log, ['showNow', 'closed', 'wait300', 'done']);
+});
+
+test('showAd：広告を出さなかった（showNow が false）ときは待たずに終わる', async () => {
+  const log = [];
+  const extra = { TjaAds: { showNow: async () => { log.push('showNow'); return false; } }, setTimeout: (f, ms) => { log.push('wait' + ms); return setTimeout(f, 0); } };
+  await load(flow, { log, extra }).w.TjaApp.showAd();
+  assert.deepEqual(log, ['showNow']);
+});
+
+test('showAd：TjaAds が無い・showNow が失敗しても、例外にせず終わる（ファイル選びは開かない）', async () => {
+  const a = load(flow);
+  await a.w.TjaApp.showAd();
+  assert.equal(a.picker.calls.length, 0);
+  const b = load(flow, { extra: { TjaAds: { showNow: async () => { throw new Error('x'); } } } });
+  await b.w.TjaApp.showAd();
+  assert.equal(b.picker.calls.length, 0);
+});
+
+test('つないだとき：showAd は読み込み済みなら全画面広告を出し、閉じてから終わる', async () => {
+  const log = [];
+  const { w, admob } = load(all, { log });
+  await flush();
+  let done = false;
+  const p = w.TjaApp.showAd().then(() => { done = true; });
+  await flush();
+  assert.deepEqual(log, ['showInterstitial']);
+  assert.equal(done, false, '閉じる前には終わらない');
+  admob.handlers.interstitialAdDismissed();
+  await p;
+  assert.deepEqual(log, ['showInterstitial'], 'ファイル選びは開かない');
+});
+
+test('つないだとき：買った人には showAd で広告を出さない', async () => {
+  const log = [];
+  const { w } = load(all, { log, owned: true });
+  await flush();
+  await w.TjaApp.showAd();
+  assert.deepEqual(log, []);
+});

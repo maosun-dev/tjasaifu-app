@@ -11,6 +11,8 @@
  *   読むときは Range: bytes=0- を付ける（付けないと iOS で mp3・wav が読めない。206 も r.ok）
  *   選んだファイルが読めない：例外（message は「読めませんでした（名前）」、code は 'read'）。ツールが知らせを出す
  *   ファイル選びがやめた以外で失敗：例外（message は「読めませんでした」、code は 'pick'）
+ * ・showAd()：書き出す前の全画面広告（出せれば）→ 閉じるのを待つ。ファイル選びは開かない。いつも resolve（値なし）
+ *   広告を出したときは adThenPick と同じく 300ms 待ってから終わる。TjaAds が無い・失敗・出せないときはすぐ終わる
  * ・picking：いまファイルを選んでいる最中か（読むだけ。60秒を過ぎたものは数えない）。js/ads.js が書き出しの広告を重ねないために見る
  * ・種類では絞らない（全部のファイルを選べる）。部品の types は MIME の名前しか受け付けず、
  *   .tja には iPhone の決まった種類が無く、ogg も種類で選べるか確かめられないため。違うファイルはツールが「読めませんでした」で断る
@@ -38,15 +40,20 @@ async function online() {
   } catch (e) { return true; }
 }
 
+// 全画面広告（出せれば）を出して閉じるのを待つ。出したときは閉じる動きが終わるまで待つ
+async function showAd() {
+  let ad = false;
+  try { if (window.TjaAds) ad = await window.TjaAds.showNow(); } catch (e) {}   // 広告が出せなくても先へ
+  if (ad) await new Promise(r => setTimeout(r, AFTER_AD));
+}
+
 // kind：'audio'（曲から作る）| 'import'（ファイルから入れる）。今はどちらも同じ選び方
 async function adThenPick(kind) {
   if (isPicking()) return null;
   const token = {};
   pickToken = token; pickAt = Date.now();
   try {
-    let ad = false;
-    try { if (window.TjaAds) ad = await window.TjaAds.showNow(); } catch (e) {}   // 広告が出せなくても先へ
-    if (ad) await new Promise(r => setTimeout(r, AFTER_AD));
+    await showAd();
     let res;
     try { res = await FilePicker.pickFiles({ limit: 1, readData: false }); }
     catch (e) {
@@ -68,5 +75,5 @@ async function adThenPick(kind) {
   } finally { if (pickToken === token) pickToken = null; }
 }
 
-window.TjaApp = { online, adThenPick, get picking() { return isPicking(); } };
+window.TjaApp = { online, adThenPick, showAd, get picking() { return isPicking(); } };
 })();
