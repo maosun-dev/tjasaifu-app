@@ -161,3 +161,10 @@ test('本物の web/ を使うと、ツール自身の2つのライセンスも 
     assert.ok(existsSync(join(out, 'www/licenses', f)), f + ' が無い');
   }
 });
+
+test('MARKETING_VERSION の読み取り：s を含む番号も読め、空白は含めない', async () => {
+  const { marketingVersion } = await import('../tools/build-www.mjs');
+  assert.equal(marketingVersion('MARKETING_VERSION = 1.0;'), '1.0');
+  assert.equal(marketingVersion('\t\tMARKETING_VERSION = 2.1s;\n'), '2.1s');
+  assert.equal(marketingVersion('MARKETING_VERSION = ;'), null);
+});

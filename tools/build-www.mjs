@@ -26,6 +26,11 @@ const LICENSES = [
   { name: 'Dela Gothic One ほかフォント3つ', license: 'SIL Open Font License 1.1', file: 'fonts_OFL.txt', src: 'fonts/LICENSE.txt' },
 ];
 
+// project.pbxproj の文字から版の番号（MARKETING_VERSION）を取り出す。無ければ null
+export function marketingVersion(pbx) {
+  return (pbx.match(/MARKETING_VERSION = ([^;\s]+);/) || [])[1] || null;
+}
+
 // root: web/ があるフォルダ、out: 書き出し先、repo: node_modules と js/ があるフォルダ
 // env: ADS_PRODUCTION=1 で本物の広告、PURCHASES=1 で「広告を消す」の課金を有効にする（どちらも既定は off）
 export function buildWww({ root = here, out = join(here, 'www'), repo = here, env = process.env } = {}) {
@@ -71,7 +76,7 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here, en
   }
   // 版の番号は Xcode の設定（MARKETING_VERSION）から読む
   const pbx = readFileSync(join(repo, 'ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
-  const version = (pbx.match(/MARKETING_VERSION = ([^;s]+);/) || [])[1];
+  const version = marketingVersion(pbx);
   if (!version) throw new Error('project.pbxproj に MARKETING_VERSION がありません');
   const appInfo = { version, licenses: LICENSES.map(({ name, license, file }) => ({ name, license, file })) };
   const adsConfig = { production: env.ADS_PRODUCTION === '1', purchases: env.PURCHASES === '1' };
