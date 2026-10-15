@@ -8,7 +8,7 @@
  * ・起動のとき：Purchase.ready（端末に覚えた値）を待つ → 買っていなければ追跡の許可（ATT）を聞く → initialize → 読み込む
  *   課金が off（ADS_CONFIG.purchases が false。window.Purchase が無い）ならみんなに出すので、待たずに始める
  * 開発中は Google のテスト広告。ストアに出す版だけ本物（ADS_PRODUCTION=1 で組み立てたとき）。
- * 本物の ID（REAL_INTERSTITIAL）が空のうちは、本物の版でも広告を出さない（ATT も聞かない）。
+ * 本物の ID（REAL_INTERSTITIAL）が空のまま ADS_PRODUCTION=1 で組み立てようとすると、tools/build-www.mjs が止める。
  */
 (() => {
 'use strict';
@@ -21,8 +21,8 @@ const production = !!cfg.production;
 
 // Google が用意しているテスト用の全画面広告（開発中はこちらを使う）
 const TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544/4411468910';
-// 本物の全画面広告の ID（ストアに出す版だけで使う）。AdMob でこのアプリ用に作った ID を Task 5 で入れる。空のうちは出さない
-const REAL_INTERSTITIAL = '';
+// 本物の全画面広告の ID（ストアに出す版だけで使う）。AdMob でこのアプリ用に作った ID（アプリ ID は ios/App/App/Info.plist）
+const REAL_INTERSTITIAL = 'ca-app-pub-7017663942238206/6960467426';
 const adId = production ? REAL_INTERSTITIAL : TEST_INTERSTITIAL;
 if (!adId) return;
 const AdMob = plugin.AdMob;

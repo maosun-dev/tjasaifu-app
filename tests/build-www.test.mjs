@@ -1,7 +1,7 @@
 // www を作る仕組み（tools/build-www.mjs）のテスト
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, cpSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, cpSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -167,4 +167,56 @@ test('MARKETING_VERSION の読み取り：s を含む番号も読め、空白は
   assert.equal(marketingVersion('MARKETING_VERSION = 1.0;'), '1.0');
   assert.equal(marketingVersion('\t\tMARKETING_VERSION = 2.1s;\n'), '2.1s');
   assert.equal(marketingVersion('MARKETING_VERSION = ;'), null);
+});
+
+// ---- 守り：ストア向け（ADS_PRODUCTION=1）の組み立ては、テストの ID が残っていたら止まる ----
+// 偽の repo（js・ios の必要な分だけ写し、node_modules と fonts は本物を指す）を作る
+function fakeRepo({ plist, ads } = {}) {
+  const r = mkdtempSync(join(tmpdir(), 'tjasaifu-repo-'));
+  cpSync(join(repo, 'js'), join(r, 'js'), { recursive: true });
+  mkdirSync(join(r, 'ios/App/App.xcodeproj'), { recursive: true });
+  cpSync(join(repo, 'ios/App/App.xcodeproj/project.pbxproj'), join(r, 'ios/App/App.xcodeproj/project.pbxproj'));
+  cpSync(join(repo, 'ios/App/App/Info.plist'), join(r, 'ios/App/App/Info.plist'), { recursive: true });
+  symlinkSync(join(repo, 'node_modules'), join(r, 'node_modules'), 'junction');
+  symlinkSync(join(repo, 'fonts'), join(r, 'fonts'), 'junction');
+  if (plist) writeFileSync(join(r, 'ios/App/App/Info.plist'), plist(readFileSync(join(r, 'ios/App/App/Info.plist'), 'utf8')));
+  if (ads) writeFileSync(join(r, 'js/ads.js'), ads(readFileSync(join(r, 'js/ads.js'), 'utf8')));
+  return r;
+}
+const TEST_APP_ID = 'ca-app-pub-3940256099942544~1458002511';
+
+test('ADS_PRODUCTION=1：Info.plist も ads.js も本物なら組み立てられる', () => {
+  const r = fakeRepo();
+  const root = fakeRoot(page(''));
+  buildWww({ root, out: join(root, 'www'), repo: r, env: { ADS_PRODUCTION: '1' } });
+  assert.ok(existsSync(join(root, 'www/index.html')));
+});
+
+test('ADS_PRODUCTION=1：Info.plist がテストのアプリ ID なら止まる', () => {
+  const r = fakeRepo({ plist: p => p.replace(/ca-app-pub-7017663942238206~\d+/, TEST_APP_ID) });
+  const root = fakeRoot(page(''));
+  assert.throws(() => buildWww({ root, out: join(root, 'www'), repo: r, env: { ADS_PRODUCTION: '1' } }), /GADApplicationIdentifier/);
+});
+
+test('ADS_PRODUCTION=1：ads.js の本物の全画面 ID が空なら止まる', () => {
+  const r = fakeRepo({ ads: a => a.replace(/const REAL_INTERSTITIAL = '[^']*';/, "const REAL_INTERSTITIAL = '';") });
+  const root = fakeRoot(page(''));
+  assert.throws(() => buildWww({ root, out: join(root, 'www'), repo: r, env: { ADS_PRODUCTION: '1' } }), /REAL_INTERSTITIAL/);
+});
+
+test('既定（ADS_PRODUCTION なし）の組み立ては、守りに引っかからずテスト ID のまま動く', () => {
+  const r = fakeRepo({
+    plist: p => p.replace(/ca-app-pub-7017663942238206~\d+/, TEST_APP_ID),
+    ads: a => a.replace(/const REAL_INTERSTITIAL = '[^']*';/, "const REAL_INTERSTITIAL = '';"),
+  });
+  const root = fakeRoot(page(''));
+  const out = join(root, 'www');
+  buildWww({ root, out, repo: r, env: {} });
+  assert.deepEqual(runAppInfo(out).ADS_CONFIG, { production: false, purchases: false });
+});
+
+test('ads.js：テストの全画面 ID と本物の ID がどちらも入っている', () => {
+  const a = readFileSync(join(repo, 'js/ads.js'), 'utf8');
+  assert.match(a, /const TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544\/4411468910';/);
+  assert.match(a, /const REAL_INTERSTITIAL = 'ca-app-pub-7017663942238206\/6960467426';/);
 });

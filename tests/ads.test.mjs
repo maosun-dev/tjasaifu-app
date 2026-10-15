@@ -106,12 +106,13 @@ test('テストの間は Google のテスト広告の ID で読み込む', async
   assert.equal(count(admob, 'initialize'), 1);
 });
 
-test('本物の ID が空のうちは、production でも広告を出さない（ATT も聞かない）', async () => {
+test('production では本物の全画面 ID を使い、テスト扱いにしない', async () => {
   const { w, admob } = load(both, { production: true });
   await flush();
-  w.moment('load');
-  await wait(40); await flush();
-  assert.deepEqual(admob.calls, []);
+  const prep = admob.calls.find(c => Array.isArray(c) && c[0] === 'prepareInterstitial');
+  assert.ok(prep, 'prepareInterstitial が呼ばれていない');
+  assert.equal(prep[1].adId, 'ca-app-pub-7017663942238206/6960467426');
+  assert.equal(prep[1].isTesting, false);
 });
 
 test('ad-moment で全画面広告を出す（読み込み済みのとき）', async () => {

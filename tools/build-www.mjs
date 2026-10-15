@@ -34,6 +34,18 @@ export function marketingVersion(pbx) {
 // root: web/ があるフォルダ、out: 書き出し先、repo: node_modules と js/ があるフォルダ
 // env: ADS_PRODUCTION=1 で本物の広告、PURCHASES=1 で「広告を消す」の課金を有効にする（どちらも既定は off）
 export function buildWww({ root = here, out = join(here, 'www'), repo = here, env = process.env } = {}) {
+  // ストアに出す版（ADS_PRODUCTION=1）は、テストの広告 ID や空の ID のままでは組み立てない
+  // Info.plist のアプリ ID は常に本物。AdMob の部品は、テスト用の広告ユニット ID を使えばアプリ ID が本物でもテスト広告を出す
+  if (env.ADS_PRODUCTION === '1') {
+    const ads = readFileSync(join(repo, 'js/ads.js'), 'utf8');
+    if (!/const REAL_INTERSTITIAL = 'ca-app-pub-\d+\/\d+';/.test(ads)) {
+      throw new Error('js/ads.js: 本物の全画面広告の ID（REAL_INTERSTITIAL）が空です');
+    }
+    const plist = readFileSync(join(repo, 'ios/App/App/Info.plist'), 'utf8');
+    if (plist.includes('ca-app-pub-3940256099942544~') || !/<key>GADApplicationIdentifier<\/key>\s*<string>ca-app-pub-\d+~\d+<\/string>/.test(plist)) {
+      throw new Error('ios/App/App/Info.plist: GADApplicationIdentifier が Google のテスト用のままです');
+    }
+  }
   let html = readFileSync(join(root, 'web/tja-saifu.html'), 'utf8');
 
   // アプリにウェブ用の広告（AdSense）を入れない。広告入りの完成品を写してしまったときに気づけるように止める
