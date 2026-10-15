@@ -522,3 +522,67 @@ test('ウェブ版（iPhone でない）では TjaAds を作らない', async ()
   await flush();
   assert.equal(w.TjaAds, undefined);
 });
+
+/* ---------- 見張りは「広告が出なかったとき」だけ（長い動画の広告の途中でファイル選びを開かない） ---------- */
+
+test('showNow：出た（Showed）あとは、見張りの時間が過ぎても閉じるまで終わらない', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  let done = null;
+  w.TjaAds.showNow().then(v => { done = v; });
+  await flush();
+  admob.handlers.interstitialAdShowed();
+  await wait(400); await flush();   // 見張り（縮めて300ms）を過ぎても
+  assert.equal(done, null, '広告が出ている間は終わらない');
+  w.moment('export');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 1, '出ている間は重ねない（showing のまま）');
+  admob.handlers.interstitialAdDismissed();
+  await flush();
+  assert.equal(done, true);
+});
+
+test('showNow：出た → 閉じた で true、次の広告を読み込む', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  const p = w.TjaAds.showNow();
+  await flush();
+  const before = count(admob, 'prepareInterstitial');
+  admob.handlers.interstitialAdShowed();
+  admob.handlers.interstitialAdDismissed();
+  assert.equal(await p, true);
+  await flush();
+  assert.equal(count(admob, 'prepareInterstitial'), before + 1);
+});
+
+test('showNow：一度も出なければ（知らせが何も来ない）、見張りで true', async () => {
+  const { w } = load(both);
+  await flush();
+  let done = null;
+  w.TjaAds.showNow().then(v => { done = v; });
+  await wait(400); await flush();
+  assert.equal(done, true);
+});
+
+test('書き出しの ad-moment：ファイルを選んでいる最中（TjaApp.picking）は出さない', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  w.TjaApp = { picking: true };
+  w.moment('export');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 0);
+  w.TjaApp.picking = false;
+  w.moment('export');
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 1);
+});
+
+test('書き出しの ad-moment：600ms の間にファイル選びが始まったら出さない', async () => {
+  const { w, admob } = load(both);
+  await flush();
+  w.TjaApp = { picking: false };
+  w.moment('export');
+  w.TjaApp.picking = true;
+  await wait(40); await flush();
+  assert.equal(count(admob, 'showInterstitial'), 0);
+});

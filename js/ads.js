@@ -2,9 +2,11 @@
  * 手本はワンタップ収支の js/ads.js（バナーは使わないので外した）。
  * ・「曲から作る」「ファイルから入れる」を押したとき：js/app-flow.js が window.TjaAds.showNow() を呼ぶ
  *   出せればすぐ全画面広告を出し、閉じた・出せなかった・10秒の見張りのどれかで true。出せないときはすぐ false
+ *   10秒の見張りは「広告が出なかった（何の知らせも来ない）」ときだけ。出た（Showed）あとは閉じるまで待つ
+ *   （長い動画の広告の途中でファイル選びを開くと、iPhone が開いてくれず固まるため）
  *   （押した直後なので 600ms は待たない。終わったらファイル選びを開く）
  * ・ツールが window に出す知らせ tja:ad-moment は、書き出したあと（detail.at = 'export'）だけ全画面広告を出す
- *   出すのは 600ms 後（画面が切り替わったのが見えてから）。毎回出す
+ *   出すのは 600ms 後（画面が切り替わったのが見えてから）。毎回出す。ファイルを選んでいる最中（TjaApp.picking）は出さない
  *   'load'（読み込んだあと）・'import'（入れたあと）は、選ぶ前に出すようにしたので出さない
  * ・出さないとき：前もって読み込めていない（待たせない）・ほかの広告を出している／出す予定・
  *   試し叩き（body.ph-pt）や採譜（body.ph-rec）の最中・広告を消した人
@@ -34,7 +36,7 @@ const DELAY = 600;   // 画面が切り替わってから出すまで
 const SHOW_WATCHDOG = 10000;   // 出してから、閉じた・出せなかったの知らせがこれだけ来なければ見切る（iOS の AdMob は画面が取れないと何も返さない）
 
 let started = false, inited = false, noAds = false;
-let interReady = false, loading = false, showing = false;
+let interReady = false, loading = false, showing = false, shown = false;   // shown：いま出している広告が画面に出た
 let retryTimer = null, watchdog = null;
 let waiters = [];   // showNow() で閉じるのを待っているもの
 
@@ -52,7 +54,7 @@ function loadInter() {
     .catch(() => { loading = false; clearTimeout(retryTimer); retryTimer = setTimeout(loadInter, 60000); });
 }
 function finishInter() {
-  clearTimeout(watchdog); showing = false; interReady = false;
+  clearTimeout(watchdog); showing = false; shown = false; interReady = false;
   const w = waiters; waiters = [];
   for (const f of w) f(true);   // showNow() を待っているもの：閉じた（出せなかった・見切った）ので先へ
   loadInter();
@@ -61,17 +63,23 @@ function finishInter() {
 function showInter() {
   interReady = false;
   clearTimeout(watchdog);
-  watchdog = setTimeout(finishInter, SHOW_WATCHDOG);   // 知らせが来なければ showing を戻して次を読み込む
+  shown = false;
+  // 知らせが来なければ showing を戻して次を読み込む。出た（Showed）あとは見切らない（閉じる・出せなかったの知らせを待つ）
+  watchdog = setTimeout(() => { if (!shown) finishInter(); }, SHOW_WATCHDOG);
   Promise.resolve().then(() => AdMob.showInterstitial()).catch(finishInter);
 }
 
+function onShowed() { if (showing) { shown = true; clearTimeout(watchdog); } }
+// ファイルを選んでいる最中（js/app-flow.js）は出さない（ファイル選びの上に重ねない）
+const picking = () => { try { return !!(window.TjaApp && window.TjaApp.picking); } catch (e) { return false; } };
+
 function onMoment(e) {
   if (!e || !e.detail || e.detail.at !== 'export') return;   // 書き出したあとだけ
-  if (noAds || !interReady || showing || busyPlaying()) return;   // 読み込めていなければ、その回は出さない
+  if (noAds || !interReady || showing || busyPlaying() || picking()) return;   // 読み込めていなければ、その回は出さない
   showing = true;
   setTimeout(() => {
     // 待っている間に買われた・試し叩きなどが始まった：出さない（読み込んだ広告は次の機会に使う）
-    if (noAds || busyPlaying()) { showing = false; return; }
+    if (noAds || busyPlaying() || picking()) { showing = false; return; }
     showInter();
   }, DELAY);
 }
@@ -98,6 +106,7 @@ async function init() {
   inited = true;
   try { AdMob.addListener('interstitialAdDismissed', finishInter); } catch (e) {}
   try { AdMob.addListener('interstitialAdFailedToShow', finishInter); } catch (e) {}
+  try { AdMob.addListener('interstitialAdShowed', onShowed); } catch (e) {}
   loadInter();
 }
 

@@ -4,9 +4,13 @@
  *   つながりの部品が無い・問い合わせに失敗したときも true（止めすぎない）
  * ・adThenPick(kind)：全画面広告（出せれば。js/ads.js の TjaAds.showNow）→ 閉じるのを待つ → iPhone 本体のファイル選び → File
  *   WebKit は指で押した直後でないと <input type=file> を開けないので、広告のあとは本体のファイル選びを使う
+ *   広告を出したとき（showNow が true）は、閉じる動きが終わるよう 300ms 待ってからファイル選びを開く
  *   やめた・何も選ばなかった・選んでいる最中にもう一度呼ばれた：null
+ *   ただし前の選びが 60秒より長く終わらない（ファイル選びが開けずに固まった）ときは、前のを捨てて新しく開く
+ *   （最後の守り。捨てた前の呼び出しがあとで終わっても、新しいほうの「選んでいる最中」は消さない）
  *   選んだファイルが読めない：例外（message は「読めませんでした（名前）」、code は 'read'）。ツールが知らせを出す
  *   ファイル選びがやめた以外で失敗：例外（message は「読めませんでした」、code は 'pick'）
+ * ・picking：いまファイルを選んでいる最中か（読むだけ。60秒を過ぎたものは数えない）。js/ads.js が書き出しの広告を重ねないために見る
  * ・種類では絞らない（全部のファイルを選べる）。部品の types は MIME の名前しか受け付けず、
  *   .tja には iPhone の決まった種類が無く、ogg も種類で選べるか確かめられないため。違うファイルはツールが「読めませんでした」で断る
  */
@@ -18,7 +22,10 @@ const FilePicker = window.capacitorFilePicker && window.capacitorFilePicker.File
 if (!FilePicker) return;   // 部品が無ければ作らない（ツールは今の <input type=file> を使う）
 
 const fail = (message, code) => Object.assign(new Error(message), { code });
-let picking = false;
+const AFTER_AD = 300;     // 広告を閉じてからファイル選びを開くまで（閉じる動きが終わるのを待つ）
+const STALE = 60000;     // 選んでいる最中がこれより長く続いたら、固まったとみなす
+let pickToken = null, pickAt = 0;   // いま選んでいる呼び出しの印と、始めた時刻
+const isPicking = () => pickToken !== null && Date.now() - pickAt < STALE;
 
 async function online() {
   try { if (window.Purchase && window.Purchase.owned()) return true; } catch (e) {}
@@ -32,10 +39,13 @@ async function online() {
 
 // kind：'audio'（曲から作る）| 'import'（ファイルから入れる）。今はどちらも同じ選び方
 async function adThenPick(kind) {
-  if (picking) return null;
-  picking = true;
+  if (isPicking()) return null;
+  const token = {};
+  pickToken = token; pickAt = Date.now();
   try {
-    try { if (window.TjaAds) await window.TjaAds.showNow(); } catch (e) {}   // 広告が出せなくても先へ
+    let ad = false;
+    try { if (window.TjaAds) ad = await window.TjaAds.showNow(); } catch (e) {}   // 広告が出せなくても先へ
+    if (ad) await new Promise(r => setTimeout(r, AFTER_AD));
     let res;
     try { res = await FilePicker.pickFiles({ limit: 1, readData: false }); }
     catch (e) {
@@ -52,8 +62,8 @@ async function adThenPick(kind) {
       blob = await r.blob();
     } catch (e) { throw fail('読めませんでした（' + name + '）', 'read'); }
     return new File([blob], name, { type: p.mimeType || blob.type || '' });
-  } finally { picking = false; }
+  } finally { if (pickToken === token) pickToken = null; }
 }
 
-window.TjaApp = { online, adThenPick };
+window.TjaApp = { online, adThenPick, get picking() { return isPicking(); } };
 })();

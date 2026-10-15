@@ -241,3 +241,57 @@ test('つないだとき：課金が off なら買った値があっても広告
   await p;
   assert.deepEqual(log, ['showInterstitial', 'pickFiles']);
 });
+
+/* ---------- 固まらない守り ---------- */
+
+test('adThenPick：広告を出したあと（showNow が true）は、閉じる動きが終わるまで少し待ってからファイル選び', async () => {
+  const log = [];
+  const waits = [];
+  const extra = {
+    TjaAds: { showNow: async () => { log.push('ad'); return true; } },
+    setTimeout: (f, ms) => { waits.push(ms); log.push('wait' + ms); return setTimeout(f, 0); },
+  };
+  const { w } = load(flow, { log, extra });
+  await w.TjaApp.adThenPick('audio');
+  assert.deepEqual(log, ['ad', 'wait300', 'pickFiles']);
+  // 広告を出さなかったときは待たない
+  const log2 = [];
+  const w2 = load(flow, { log: log2, extra: { TjaAds: { showNow: async () => false }, setTimeout: (f, ms) => { log2.push('wait' + ms); return setTimeout(f, 0); } } }).w;
+  await w2.TjaApp.adThenPick('audio');
+  assert.deepEqual(log2, ['pickFiles']);
+});
+
+test('adThenPick：選んでいる最中は picking が true、終わると false', async () => {
+  let release;
+  const picker = { calls: [], pickFiles(o) { this.calls.push(o); return new Promise(r => { release = () => r({ files: [PICKED] }); }); } };
+  const { w } = load(flow, { picker, extra: noAd });
+  assert.equal(w.TjaApp.picking, false);
+  const a = w.TjaApp.adThenPick('audio');
+  await flush();
+  assert.equal(w.TjaApp.picking, true);
+  release(); await a;
+  assert.equal(w.TjaApp.picking, false);
+});
+
+test('adThenPick：前の選びが60秒より長く終わらない（固まった）なら、捨てて新しく開く', async () => {
+  let now = 1000000;
+  const pending = [];
+  const picker = { calls: [], pickFiles(o) { this.calls.push(o); return new Promise(r => pending.push(r)); } };
+  const { w } = load(flow, { picker, extra: { ...noAd, Date: { now: () => now } } });
+  const stuck = w.TjaApp.adThenPick('audio');
+  await flush();
+  now += 59000;
+  assert.equal(await w.TjaApp.adThenPick('audio'), null, '60秒までは二度押しとして断る');
+  assert.equal(w.TjaApp.picking, true);
+  now += 2000;
+  assert.equal(w.TjaApp.picking, false, '60秒を過ぎたら選んでいる最中とみなさない');
+  const fresh = w.TjaApp.adThenPick('import');
+  await flush();
+  assert.equal(picker.calls.length, 2, '新しくファイル選びを開く');
+  // 古いほうがあとで終わっても、新しいほうの「選んでいる最中」を消さない
+  pending[0]({ files: [PICKED] }); await stuck;
+  assert.equal(w.TjaApp.picking, true);
+  pending[1]({ files: [PICKED] });
+  assert.ok(await fresh);
+  assert.equal(w.TjaApp.picking, false);
+});
