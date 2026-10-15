@@ -69,6 +69,8 @@
 	<string>ca-app-pub-7017663942238206~1946234883</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>許可すると、あなたの興味に合った広告が表示されやすくなります。許可しなくても、アプリはすべて使えます。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>このアプリは写真を使いません。ファイルを選ぶしくみの決まりで、この説明が入っています。</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

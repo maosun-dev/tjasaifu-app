@@ -58,3 +58,8 @@ test('ワークフロー：production の入力があり、ADS_PRODUCTION を ww
   assert.match(y, /inputs:[\s\S]*?production:\s*\r?\n\s*description: '[^']*本物の広告[^']*'\s*\r?\n\s*type: boolean\s*\r?\n\s*default: false/);
   assert.match(y, /name: アプリのファイルを入れる\s*\r?\n\s*env:[\s\S]*?ADS_PRODUCTION: \$\{\{ inputs\.production && '1' \|\| '' \}\}\s*\r?\n\s*run: \|/);
 });
+
+test('Info.plist：写真の説明の文（ファイル選びの部品が写真のしくみを含むため。持ち主が決めた文のまま）', () => {
+  const p = readFileSync(join(ios, 'App/Info.plist'), 'utf8');
+  assert.match(p, /<key>NSPhotoLibraryUsageDescription<\/key>\s*<string>このアプリは写真を使いません。ファイルを選ぶしくみの決まりで、この説明が入っています。<\/string>/);
+});
