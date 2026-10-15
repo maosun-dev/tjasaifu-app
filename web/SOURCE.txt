@@ -1,3 +1,3 @@
-写した日時: 2026-10-15T06:12:17.866Z
+写した日時: 2026-10-15T06:54:33.417Z
 元: tjasaifu の dist/tja-saifu.html
-tjasaifu の最新コミット: a1f0374 iPhone 版：曲を読み込んだ・ファイルを入れた・書き出した時に、広告用の知らせ（tja:ad-moment）を出す
+tjasaifu の最新コミット: 5855da8 iPhone 版：利用規約・プライバシーポリシーのリンク先を、アプリ専用のページ（app-terms.html）に変える
