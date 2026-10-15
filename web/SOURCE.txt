@@ -1,3 +1,3 @@
-写した日時: 2026-10-15T06:54:33.417Z
-元: tjasaifu の dist/tja-saifu.html
-tjasaifu の最新コミット: 5855da8 iPhone 版：利用規約・プライバシーポリシーのリンク先を、アプリ専用のページ（app-terms.html）に変える
+写した日時: 2026-10-15T09:49:39.337Z
+元: tjasaifu の dist-app/tja-saifu.html
+tjasaifu の最新コミット: 5791f60 ウェブ版：AdSense の広告ユニット2つ（曲の読み込み後・zip保存中）の番号を入れ、手元で枠が出る条件を確かめる試験を足す
