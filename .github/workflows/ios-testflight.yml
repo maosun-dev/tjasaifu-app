@@ -15,6 +15,10 @@ on:
         description: 'ストアに出す版（本物の広告）'
         type: boolean
         default: false
+      purchases:
+        description: '「広告を消す」の課金を入れる'
+        type: boolean
+        default: false
       runner:
         description: '組み立てに使う Mac（新しいチップの Mac は混んでいて始まらないことがある）'
         type: choice
@@ -48,6 +52,8 @@ jobs:
         env:
           # オンのときだけ 1（本物の広告 ID で組み立てる。テスト ID が残っていれば build が止める）
           ADS_PRODUCTION: ${{ inputs.production && '1' || '' }}
+          # オンのときだけ 1（「広告を消す」の課金の部品が働く。App Store Connect に商品が要る）
+          PURCHASES: ${{ inputs.purchases && '1' || '' }}
         run: |
           npm ci
           npm test

@@ -56,7 +56,13 @@ test('PrivacyInfo.xcprivacy：追跡なし・UserDefaults の理由 CA92.1。Xco
 test('ワークフロー：production の入力があり、ADS_PRODUCTION を www を作る段に渡している', () => {
   const y = readFileSync(join(ios, '..', '..', '.github/workflows/ios-testflight.yml'), 'utf8');
   assert.match(y, /inputs:[\s\S]*?production:\s*\r?\n\s*description: '[^']*本物の広告[^']*'\s*\r?\n\s*type: boolean\s*\r?\n\s*default: false/);
-  assert.match(y, /name: アプリのファイルを入れる\s*\r?\n\s*env:[\s\S]*?ADS_PRODUCTION: \$\{\{ inputs\.production && '1' \|\| '' \}\}\s*\r?\n\s*run: \|/);
+  assert.match(y, /name: アプリのファイルを入れる\s*\r?\n\s*env:[\s\S]*?ADS_PRODUCTION: \$\{\{ inputs\.production && '1' \|\| '' \}\}[\s\S]*?run: \|/);
+});
+
+test('ワークフロー：purchases の入力があり、PURCHASES を www を作る段に渡している', () => {
+  const y = readFileSync(join(ios, '..', '..', '.github/workflows/ios-testflight.yml'), 'utf8');
+  assert.match(y, /inputs:[\s\S]*?purchases:\s*\r?\n\s*description: '[^']*広告を消す[^']*'\s*\r?\n\s*type: boolean\s*\r?\n\s*default: false/);
+  assert.match(y, /name: アプリのファイルを入れる\s*\r?\n\s*env:[\s\S]*?PURCHASES: \$\{\{ inputs\.purchases && '1' \|\| '' \}\}[\s\S]*?run: \|/);
 });
 
 test('Info.plist：写真の説明の文（ファイル選びの部品が写真のしくみを含むため。持ち主が決めた文のまま）', () => {

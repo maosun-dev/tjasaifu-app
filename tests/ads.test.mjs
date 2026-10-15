@@ -244,6 +244,48 @@ test('払い戻しで買っていない状態に戻ったら広告を始める',
   assert.equal(count(admob, 'showInterstitial'), 1);
 });
 
+test('入れ直した直後（覚えた値なし）でも、買ってあれば追跡の許可も広告も始めない', async () => {
+  const np = fakeStore(); np.owned = true;
+  const { w, admob } = load(both, { np });   // 端末に覚えた値はない
+  await wait(60); await flush();
+  assert.equal(w.Purchase.owned(), true);
+  assert.equal(count(admob, 'requestTrackingAuthorization'), 0);
+  assert.equal(count(admob, 'initialize'), 0);
+});
+
+test('入れ直した直後で Apple につながらなければ、待たずに広告を始める', async () => {
+  const np = fakeStore({ getPurchases: async () => { await new Promise(() => {}); } });   // 返事が来ない
+  const { w, admob } = load(both, { np });
+  await wait(60); await flush();
+  assert.equal(w.Purchase.owned(), false);
+  assert.equal(count(admob, 'initialize'), 1);
+});
+
+test('古い問い合わせの返事が、買ったあとに届いても「買っていない」で上書きしない', async () => {
+  const np = fakeStore({ getPurchases: async () => { const snap = np.owned; await wait(60); return { purchases: snap ? [{ productIdentifier: ID }] : [] }; } });
+  const { w } = load(both, { np });
+  await w.Purchase.ready;
+  await w.Purchase.buy();
+  await wait(150); await flush();
+  assert.equal(w.Purchase.owned(), true);
+});
+
+test('日本語の「キャンセル」で途中でやめたときは知らせを出さない', async () => {
+  const np = fakeStore({ purchaseProduct: async () => { throw new Error('購入がキャンセルされました'); } });
+  const { w } = load(both, { np });
+  await flush();
+  await w.Purchase.buy();
+  assert.deepEqual(w.toasts, []);
+});
+
+test('値段が遅れて届いたら onPrice で知らせる', async () => {
+  const { w } = load(both);
+  const got = [];
+  w.Purchase.onPrice(p => got.push(p));
+  await wait(60); await flush();
+  assert.deepEqual(got, ['¥600']);
+});
+
 /* ---------- 課金の切り替え（ADS_CONFIG.purchases） ---------- */
 
 test('課金が off：Purchase を作らず、課金の部品も呼ばない', async () => {
