@@ -13,10 +13,22 @@ const VENDOR = [
   ['synapse.js', null],   // Filesystem の手伝い役（下で作る）
   ['filesystem.js', '@capacitor/filesystem/dist/plugin.js'],
   ['share.js', '@capacitor/share/dist/plugin.js'],
+  ['admob.js', '@capacitor-community/admob/dist/plugin.js'],       // 広告
+  ['preferences.js', '@capacitor/preferences/dist/plugin.js'],     // 小さな設定の保存
+  ['purchases.js', '@capgo/native-purchases/dist/plugin.js'],      // 課金（広告を消す）
+];
+
+// 「このアプリについて」に出す部品のライセンス。file は www/licenses/ に写す名前、src は写し元
+const LICENSES = [
+  { name: 'Capacitor', license: 'MIT', file: 'capacitor_LICENSE.txt', src: 'node_modules/@capacitor/core/LICENSE' },
+  { name: 'AdMob の部品', license: 'MIT', file: 'capacitor-community-admob_LICENSE.txt', src: 'node_modules/@capacitor-community/admob/LICENSE' },
+  { name: '課金の部品', license: 'MPL-2.0', file: 'capgo-native-purchases_LICENSE.txt', src: 'node_modules/@capgo/native-purchases/LICENSE' },
+  { name: 'Dela Gothic One ほかフォント3つ', license: 'SIL Open Font License 1.1', file: 'fonts_OFL.txt', src: 'fonts/LICENSE.txt' },
 ];
 
 // root: web/ があるフォルダ、out: 書き出し先、repo: node_modules と js/ があるフォルダ
-export function buildWww({ root = here, out = join(here, 'www'), repo = here } = {}) {
+// env: ADS_PRODUCTION=1 で本物の広告、PURCHASES=1 で「広告を消す」の課金を有効にする（どちらも既定は off）
+export function buildWww({ root = here, out = join(here, 'www'), repo = here, env = process.env } = {}) {
   let html = readFileSync(join(root, 'web/tja-saifu.html'), 'utf8');
 
   // アプリにウェブ用の広告（AdSense）を入れない。広告入りの完成品を写してしまったときに気づけるように止める
@@ -51,7 +63,25 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here } =
   copyFileSync(join(repo, 'js/app-native.js'), join(out, 'js/app-native.js'));
   if (existsSync(join(root, 'web/licenses'))) cpSync(join(root, 'web/licenses'), join(out, 'licenses'), { recursive: true });
 
-  const tags = [...VENDOR.map(([f]) => `js/vendor/${f}`), 'js/app-native.js']
+  // 部品のライセンスを写す（無ければ止める）
+  mkdirSync(join(out, 'licenses'), { recursive: true });
+  for (const l of LICENSES) {
+    if (!existsSync(join(repo, l.src))) throw new Error(l.src + ' がありません。npm install と node tools/fetch-fonts.mjs を先に');
+    copyFileSync(join(repo, l.src), join(out, 'licenses', l.file));
+  }
+  // 版の番号は Xcode の設定（MARKETING_VERSION）から読む
+  const pbx = readFileSync(join(repo, 'ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
+  const version = (pbx.match(/MARKETING_VERSION = ([^;s]+);/) || [])[1];
+  if (!version) throw new Error('project.pbxproj に MARKETING_VERSION がありません');
+  const appInfo = { version, licenses: LICENSES.map(({ name, license, file }) => ({ name, license, file })) };
+  const adsConfig = { production: env.ADS_PRODUCTION === '1', purchases: env.PURCHASES === '1' };
+  writeFileSync(join(out, 'js/app-info.js'),
+    `window.APP_INFO = ${JSON.stringify(appInfo)};
+window.ADS_CONFIG = ${JSON.stringify(adsConfig)};
+`);
+  for (const f of ['purchase.js', 'ads.js']) copyFileSync(join(repo, 'js', f), join(out, 'js', f));
+
+  const tags = [...VENDOR.map(([f]) => `js/vendor/${f}`), 'js/app-info.js', 'js/app-native.js', 'js/purchase.js', 'js/ads.js']
     .map(f => `<script src="${f}"></script>`).join('\n');
   html = html.replace('</head>', tags + '\n</head>');
   writeFileSync(join(out, 'index.html'), html);
@@ -59,5 +89,5 @@ export function buildWww({ root = here, out = join(here, 'www'), repo = here } =
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   buildWww();
-  console.log('www/index.html を作りました');
+  console.log('www/index.html を作りました（広告: ' + (process.env.ADS_PRODUCTION === '1' ? '本物' : 'テスト') + '、課金: ' + (process.env.PURCHASES === '1' ? 'あり' : 'なし') + '）');
 }
